@@ -7,4 +7,5 @@
     -kernel ./u-boot/u-boot.bin \
     -device loader,file=tee-pager_v2.bin,addr=0xF0C00000 \
     -drive file=disk.img,if=none,format=raw,id=hd0 -device virtio-blk-device,drive=hd0 \
-    -nographic -device virtio-net-pci,netdev=usernet -netdev user,id=usernet,hostfwd=tcp::9990-:22
+    -nographic -device virtio-net-pci,netdev=usernet -netdev user,id=usernet,hostfwd=tcp::9990-:22 \
+    -serial mon:stdio
