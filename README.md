@@ -2,7 +2,7 @@
 
 Download this project
 ```
-git clone https://github.com/yli147/test_optee.git -b dev-rpxy-optee
+git clone https://github.com/yli147/test_optee.git -b dev-rpxy-optee-nuclei
 cd test_optee
 export WORKDIR=`pwd`
 ```
@@ -29,7 +29,7 @@ cp build/platform/generic/firmware/fw_dynamic.elf $WORKDIR
 Compile OPTEE-OS
 ```
 cd $WORKDIR
-git clone https://github.com/yli147/optee_os.git -b dev-rpxy-optee
+git clone https://github.com/yli147/optee_os.git -b dev-rpxy-optee-nuclei
 cd optee_os
 make CFG_TEE_CORE_LOG_LEVEL=3 CROSS_COMPILE64=riscv64-linux-gnu- ARCH=riscv CFG_RV64_core=y CFG_TZDRAM_START=0xF0C00000 CFG_TZDRAM_SIZE=0x800000 CFG_SHMEM_START=0xF1600000 CFG_SHMEM_SIZE=0x200000 PLATFORM=nuclei ta-targets=ta_rv64 MARCH=rv64imafdc MABI=lp64d
 cp out/riscv-plat-nuclei/core/tee-pager_v2.bin $WORKDIR
