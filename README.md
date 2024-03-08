@@ -1,8 +1,16 @@
 # Test_OpTee
 
+Download and install toolchain
+```
+cd /opt/
+sudo wget -c https://github.com/riscv-collab/riscv-gnu-toolchain/releases/download/2023.07.07/riscv64-glibc-ubuntu-20.04-gcc-nightly-2023.07.07-nightly.tar.gz
+sudo tar zxvf riscv64-glibc-ubuntu-20.04-gcc-nightly-2023.07.07-nightly.tar.gz
+cd -
+```
+
 Download this project
 ```
-git clone https://github.com/yli147/test_optee.git
+git clone https://github.com/yli147/test_optee.git -b dev-rpxy-optee-v6
 cd test_optee
 export WORKDIR=`pwd`
 ```
@@ -10,7 +18,7 @@ export WORKDIR=`pwd`
 Compile QEMU
 ```
 cd $WORKDIR
-git clone https://github.com/yli147/qemu.git -b dev-standalonemm-rpmi
+git clone https://github.com/yli147/qemu.git -b dev-rpxy-optee-v6
 cd qemu
 ./configure --target-list=riscv64-softmmu
 make -j $(nproc)
@@ -19,21 +27,23 @@ make -j $(nproc)
 Compile OpenSBI
 
 ```
+Build Opensbi
 cd $WORKDIR
-git clone https://github.com/yli147/opensbi.git -b tee-debug-v2
+git clone https://github.com/yli147/opensbi.git -b dev-rpxy-optee-v6
 cd opensbi
-CROSS_COMPILE=riscv64-linux-gnu- make FW_PIC=n PLATFORM=generic
+CROSS_COMPILE=/opt/riscv/bin/riscv64-unknown-linux-gnu- make FW_PIC=n PLATFORM=generic
 cp build/platform/generic/firmware/fw_dynamic.elf $WORKDIR
 ```
 
 Compile OPTEE-OS
 ```
 cd $WORKDIR
-git clone https://github.com/yli147/optee_os.git -b nuclei/3.18_dev optee_os
+git clone https://github.com/yli147/optee_os.git -b dev-rpxy-optee-v6
 cd optee_os
-make CROSS_COMPILE64=riscv64-linux-gnu- ARCH=riscv CFG_RV64_core=y CFG_TZDRAM_START=0xF0C00000 CFG_TZDRAM_SIZE=0x800000 CFG_SHMEM_START=0xFEE00000 CFG_SHMEM_SIZE=0x200000 PLATFORM=nuclei ta-targets=ta_rv64 MARCH=rv64imafdc MABI=lp64d
-cp out/riscv-plat-nuclei/core/tee-pager_v2.bin $WORKDIR
-riscv64-linux-gnu-objdump -t -S out/riscv-plat-nuclei/core/tee.elf > $WORKDIR/tee.txt
+make CFG_TEE_CORE_LOG_LEVEL=3 CROSS_COMPILE64=/opt/riscv/bin/riscv64-unknown-linux-gnu- ARCH=riscv CFG_DT=y CFG_TEE_CORE_NB_CORE=2 CFG_RPMB_FS=y CFG_RPMB_WRITE_KEY=y CFG_RV64_core=y CFG_TDDRAM_START=0xF0C00000 CFG_TDDRAM_SIZE=0x800000 CFG_SHMEM_START=0xF1600000 CFG_SHMEM_SIZE=0x200000 PLATFORM=virt ta-targets=ta_rv64 MARCH=rv64imafdc MABI=lp64d
+cp out/riscv-plat-virt/core/tee.bin $WORKDIR/tee-pager_v2.bin
+/opt/riscv/bin/riscv64-unknown-linux-gnu-objdump -t -S out/riscv-plat-virt/core/tee.elf > $WORKDIR/tee.txt
+/opt/riscv/bin/riscv64-unknown-linux-gnu-objdump -t -S out/riscv-plat-virt/ldelf/ldelf.elf > $WORKDIR/ldelf.txt
 ```
 
 Compile OPTEE-client
@@ -43,7 +53,8 @@ git clone https://github.com/OP-TEE/optee_client
 cd optee_client
 mkdir build
 cd build
-cmake -DCMAKE_C_COMPILER=riscv64-linux-gnu-gcc -DCMAKE_INSTALL_PREFIX=./out/export/usr ..
+cmake CFG_TEE_CLIENT_LOG_LEVEL=3 CFG_TEE_SUPP_LOG_LEVEL=3 -DCMAKE_C_COMPILER=/opt/riscv/bin/riscv64-unknown-linux-gnu-gcc -DCMAKE_INSTALL_PREFIX=./out/export/usr .. clean
+cmake CFG_TEE_CLIENT_LOG_LEVEL=3 CFG_TEE_SUPP_LOG_LEVEL=3 -DCMAKE_C_COMPILER=/opt/riscv/bin/riscv64-unknown-linux-gnu-gcc -DCMAKE_INSTALL_PREFIX=./out/export/usr ..
 make
 make install
 ```
@@ -54,16 +65,25 @@ cd $WORKDIR
 git clone https://github.com/linaro-swg/optee_examples.git
 cd optee_examples/hello_world/host
 make \
-    CROSS_COMPILE=riscv64-linux-gnu- \
+    CROSS_COMPILE=/opt/riscv/bin/riscv64-unknown-linux-gnu- \
+    TEEC_EXPORT=$WORKDIR/optee_client/build/out/export/usr \
+    --no-builtin-variables clean
+make \
+    CROSS_COMPILE=/opt/riscv/bin/riscv64-unknown-linux-gnu- \
     TEEC_EXPORT=$WORKDIR/optee_client/build/out/export/usr \
     --no-builtin-variables
-
-cd $WORKDIR	
+cd -
 cd optee_examples/hello_world/ta
 make \
-    CROSS_COMPILE=riscv64-linux-gnu- \
+    CROSS_COMPILE=/opt/riscv/bin/riscv64-unknown-linux-gnu- \
     PLATFORM=vexpress-qemu_virt \
-    TA_DEV_KIT_DIR=$WORKDIR/optee_os/out/riscv-plat-nuclei/export-ta_rv64
+    TA_DEV_KIT_DIR=$WORKDIR/optee_os/out/riscv-plat-virt/export-ta_rv64 clean
+make \
+    CROSS_COMPILE=/opt/riscv/bin/riscv64-unknown-linux-gnu- \
+    PLATFORM=vexpress-qemu_virt \
+    TA_DEV_KIT_DIR=$WORKDIR/optee_os/out/riscv-plat-virt/export-ta_rv64
+cd -
+/opt/riscv/bin/riscv64-unknown-linux-gnu-objdump -t -S ./optee_examples/hello_world/ta/8aaaf200-2450-11e4-abe2-0002a5d5c51b.elf > $WORKDIR/8aaaf200-2450-11e4-abe2-0002a5d5c51b.txt
 ```
 
 Generate DTB
@@ -89,21 +109,30 @@ dtc -I dts -O dtb -o qemu-virt-new.dtb ./qemu-virt-new.dts
 Compile U-Boot
 ```
 cd $WORKDIR
-git clone https://github.com/u-boot/u-boot.git
+mkdir external
+cd external
+git clone https://android-review.googlesource.com/platform/external/dtc
+cd ..
+ 
+mkdir bootable
+cd bootable
+git clone https://android-review.googlesource.com/platform/bootable/libbootloader
+cd ..
+
+git clone https://github.com/intel-sandbox/personal.yli147.u-boot.git u-boot -b avb-blowfish-dev-v2
 cd u-boot
-git checkout v2023.10
-make qemu-riscv64_smode_defconfig CROSS_COMPILE=riscv64-linux-gnu-
-make -j$(nproc) CROSS_COMPILE=riscv64-linux-gnu-
+make cf-riscv64_defconfig CROSS_COMPILE=/opt/riscv/bin/riscv64-unknown-linux-gnu-
+make -j$(nproc) CROSS_COMPILE=/opt/riscv/bin/riscv64-unknown-linux-gnu-
 cp u-boot.bin $WORKDIR
 ```
 
 Compile Linux
 ```
 cd $WORKDIR
-git clone https://github.com/yli147/linux.git -b dev-rpxy-optee
+git clone https://github.com/yli147/linux.git -b dev-rpxy-optee-v6
 cd linux
-make ARCH=riscv CROSS_COMPILE=riscv64-linux-gnu- defconfig
-make ARCH=riscv CROSS_COMPILE=riscv64-linux-gnu- -j $(nproc)
+make ARCH=riscv CROSS_COMPILE=/opt/riscv/bin/riscv64-unknown-linux-gnu- defconfig
+make ARCH=riscv CROSS_COMPILE=/opt/riscv/bin/riscv64-unknown-linux-gnu- -j $(nproc)
 ls arch/riscv/boot -lSh
 ```
 
@@ -165,24 +194,13 @@ sudo losetup -D ${loopdevice}
 ![image](https://github.com/yli147/test_optee/assets/21300636/6e204e84-fae7-448b-824d-b610ad783339)
 
 
-Run u-boot only
-```
-cd $WORKDIR
-./run-term.sh
-```
-
-Run u-boot debugging
-```
-cd $WORKDIR
-Terminal 1 (Need GUI):
-./run-term-gdb.sh
-Terminal 2:
-./gdb-multiarch -x gdbscripts
-```
-
-Run u-boot + linux (Need GUI):
+Run u-boot + linux
 ```
 cd $WORKDIR
 ./run-linux.sh
 ```
 
+After Login, execute
+```
+optee_example_hello_world
+```
